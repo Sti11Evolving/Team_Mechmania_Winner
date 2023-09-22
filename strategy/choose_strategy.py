@@ -1,7 +1,10 @@
 from strategy.random_strategy import RandomStrategy
 from strategy.simple_human_strategy import SimpleHumanStrategy
 from strategy.simple_zombie_strategy import SimpleZombieStrategy
+from strategy.winning_human_strategy import WinningHumanStrategy
+from strategy.winning_zombie_strategy import WinningZombieStrategy
 from strategy.strategy import Strategy
+import MCTS
 
 
 def choose_strategy(is_zombie: bool) -> Strategy:
@@ -9,9 +12,7 @@ def choose_strategy(is_zombie: bool) -> Strategy:
     # NOTE: You can use "is_zombie" to use two different strategies for humans and zombies (RECOMMENDED!)
     #
     # For example:
-    # if is_zombie:
-    #     return SimpleZombieStrategy()
-    # else:
-    #     return SimpleHumanStrategy()
-
-    return RandomStrategy()
+    if is_zombie:
+        return WinningZombieStrategy()
+    else:
+        return WinningHumanStrategy()

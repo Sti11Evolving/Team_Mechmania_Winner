@@ -15,6 +15,8 @@ ignore_list = [
     "README.md",
     "build.py",
     "engine.py",
+    "venv",
+    "venv/*"
 ]
 
 
