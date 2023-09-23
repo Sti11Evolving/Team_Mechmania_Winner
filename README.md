@@ -76,8 +76,8 @@ If you haven't read the [wiki](https://github.com/MechMania-29/Wiki) yet, do tha
 
 **Several useful tips:**
 - Read the docs! Reading the wiki is really important as well as the rest of this README. Don't make this harder!
-- All code for MechMania is open source, take advantage of that! For example, the map can be found on the engine.
-- You only have 2.5 seconds to make a decision for each phase! Don't try anything too complicated. (O^4 = bad)
+- All code for MechMania is open source, take advantage of that! For example, [the map can be found on the engine](https://github.com/MechMania-29/engine/blob/main/src/main/resources/maps/main.json).
+- You [only have 2.5 seconds](https://github.com/MechMania-29/engine/blob/main/src/main/java/mech/mania/engine/Config.java#L112) to make a decision for each phase! Don't try anything too complicated. (O^4 = bad)
 - You cannot import any external libraries.
 
 ## Usage
