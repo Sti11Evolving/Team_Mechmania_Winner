@@ -12,6 +12,8 @@ from game.character.action.attack_action_type import AttackActionType
 from game.character.action.move_action import MoveAction
 
 from game.terrain.terrain import Terrain
+from game.terrain.terrain_type import TerrainType
+
 from game.util.position import Position
 
 MAX_HEALTH = 10
@@ -23,6 +25,11 @@ class AbilityType(Enum):
     HEAL = "HEAL"
     MOVE_OVER_BARRICADES = "MOVE_OVER_BARRICADES",
     ONESHOT_TERRAIN = "ONESHOT_TERRAIN",
+    
+class GamePhase(Enum):
+    MOVE = "MOVE"
+    ATTACK = "ATTACK"
+    ABILITY = "ABILITY",
     
 class_stats = {
     CharacterClassType.NORMAL: {
@@ -99,7 +106,7 @@ class CharacterState:
         self.move_speed = class_stats[self.class_type]["Move_Speed"]
         self.attack_range = class_stats[self.class_type]["Attack_Range"]
         self.ability = class_stats[self.class_type]["Ability"]
-        self.stunned_effect_left = int(character.is_stunned)
+        self.stunned_effect_left = 2 if character.is_stunned else 0
         self.attack_cooldown_left = cooldowns[0]
         self.ability_cooldown_left = cooldowns[1]
 
@@ -127,9 +134,6 @@ class CharacterState:
     def damage(self):
         if self.health > 0:
             self.health -= 1
-            
-        if self.is_zombie:
-            self.stun()
         
     def heal(self):
         self.health += 1
@@ -142,7 +146,7 @@ class CharacterState:
         self.attack_cooldown_left = self.attack_cooldown + 1
         
     def stun(self):
-        self.stunned_effect_left += STUNNED_DURATION + 1
+        self.stunned_effect_left = STUNNED_DURATION + 1
         
     def apply_cooldown_and_effect_decay(self):
         if (self.attack_cooldown_left > 0):
@@ -167,17 +171,19 @@ class CharacterState:
 
 
 class TerrainState:
-    def __init__(self, terrain: Terrain|None, id = None, position = None, health = None, can_attack_through = None):
+    def __init__(self, terrain: Terrain|None, id = None, position = None, health = None, can_attack_through = None, type = None):
         if terrain:
             self.id = terrain.id
             self.position = terrain.position
             self.health = terrain.health
             self.can_attack_through = terrain.can_attack_through
+            self.terrain_type = terrain.type
         else:
             self.id = id
             self.position = position
             self.health = health
             self.can_attack_through = can_attack_through
+            self.terrain_type = type
 
     def get_id(self):
         return self.id
@@ -207,10 +213,11 @@ class PyGameState:
     DIRECTIONS = [Position(0, 1), Position(0, -1), Position(1, 0), Position(-1, 0)]
     DIAGONAL_DIRECTIONS = [Position(1, 1), Position(1, -1), Position(-1, 1), Position(-1, -1)]
 
-    def __init__(self, game_state: GameState, cooldowns: dict[str, tuple[int, int]]):
+    def __init__(self, game_state: GameState, cooldowns: dict[str, tuple[int, int]], game_phase: GamePhase):
         self.turn: int = game_state.turn
         self.character_states = dict((character.id, CharacterState(character, cooldowns[character.id])) for character in game_state.characters.values())
         self.terrain_states = dict((terrain.id, TerrainState(terrain)) for terrain in game_state.terrains.values())
+        self.phase = game_phase
 
     def get_character_states(self):
         return self.character_states
@@ -220,12 +227,15 @@ class PyGameState:
 
     def get_turn(self):
         return self.turn
+    
+    def get_is_zombie_turn(self):
+        return True if self.turn % 2 == 1 else False
 
     def run_turn(self, move_actions: list[MoveAction], attack_actions: list[AttackAction], ability_actions: list[AbilityAction]) -> GameState:
         new_state = copy.deepcopy(self)
         new_state.turn += 1
 
-        is_zombie_turn = True if new_state.turn % 2 == 1 else False
+        is_zombie_turn = new_state.get_is_zombie_turn()
 
         new_state.apply_clear_actions(new_state.character_states)
         new_state.apply_move_actions(move_actions)
@@ -237,22 +247,35 @@ class PyGameState:
         
         return new_state
     
+    def run_actions(self, actions) -> GameState:
+        if self.phase == GamePhase.MOVE:
+            return self.run_move(actions)
+        
+        if self.phase == GamePhase.ATTACK:
+            return self.run_attack(actions)
+        
+        if self.phase == GamePhase.ABILITY:
+            return self.run_ability(actions)
+    
     def run_move(self, move_actions: list[MoveAction]) -> GameState:
         new_state = copy.deepcopy(self)
 
-
         new_state.apply_clear_actions(new_state.character_states)
         new_state.apply_move_actions(move_actions)
+        
+        self.phase = GamePhase.ATTACK
         
         return new_state
     
     def run_attack(self, attack_actions: list[AttackAction]) -> GameState:
         new_state = copy.deepcopy(self)
 
-        is_zombie_turn = True if new_state.turn % 2 == 1 else False
+        is_zombie_turn = new_state.get_is_zombie_turn()
 
-        new_state.apply_attack_actions(attack_actions)
+        # new_state.apply_attack_actions(attack_actions)
         new_state.apply_cooldown_and_effect_decay(is_zombie_turn)
+        
+        self.phase = GamePhase.MOVE if self.get_is_zombie_turn() else GamePhase.ABILITY
         
         return new_state
     
@@ -260,6 +283,9 @@ class PyGameState:
         new_state = copy.deepcopy(self)
 
         new_state.apply_ability_actions(ability_actions)
+        
+        self.phase = GamePhase.MOVE
+        self.turn += 1
         
         return new_state
 
@@ -309,14 +335,19 @@ class PyGameState:
             
             if attack_type == AttackActionType.CHARACTER:
                 target_state = self.character_states[target_id]
-                target_state.damage()
-                if target_state.is_destroyed():
-                    target_state.make_zombie()
-            else:
-                if self.character_states[attacker_id].ability == AbilityType.ONESHOT_TERRAIN:
-                    self.terrain_states[target_id].health = 0
+                if target_state.is_zombie:
+                    self.character_states[target_id].stun()
                 else:
-                    self.terrain_states[target_id].damage()
+                    target_state.damage()
+                    if target_state.is_destroyed():
+                        target_state.make_zombie()
+            else:
+                terrain = self.terrain_states.get(target_id)
+                if terrain and terrain.terrain_type != TerrainType.RIVER:
+                    if self.character_states[attacker_id].ability == AbilityType.ONESHOT_TERRAIN:
+                        terrain.health = 0
+                    else:
+                        terrain.damage()
 
     def apply_cooldown_and_effect_decay(self, is_zombie):
         for character_state in self.character_states.values():
@@ -335,7 +366,7 @@ class PyGameState:
                 self.character_states[target_id].heal()
 
             if action_type == AbilityActionType.BUILD_BARRICADE:
-                barricade = TerrainState(None, position_to_id(target_position), target_position, 1, True)
+                barricade = TerrainState(None, position_to_id(target_position), target_position, 1, True, TerrainType.BARRICADE)
                 self.terrain_states.append(barricade)
 
 
@@ -358,15 +389,15 @@ class PyGameState:
         return True
     
     def get_blocking_terrain(self, pos, ignore_barricades):
-        terrain_state = self.get_character_state_at_position(pos)
+        blocking = self.get_terrain_state(pos)
         
-        if terrain_state == None:
+        if blocking == None:
             return None
 
-        if terrain_state.is_destroyed():
+        if blocking.is_destroyed():
             blocking = None
 
-        if ignore_barricades and terrain_state.health == 1:
+        if ignore_barricades and blocking.terrain_type == TerrainType.BARRICADE:
             blocking = None
 
         return blocking
@@ -403,7 +434,7 @@ class PyGameState:
 
         for direction in directions:
             new_position = add_positions(start, direction)
-            if position_to_id(new_position) in moves:
+            if position_to_id(new_position) in searched:
                 continue
 
             if not is_attack:
@@ -481,9 +512,21 @@ class PyGameState:
 
         return ability_actions
     
+    def get_possible_actions(self):
+        is_zombie = self.get_is_zombie_turn
+        
+        if(self.phase == GamePhase.MOVE):
+            return self.get_possible_move_actions(is_zombie)
+        if(self.phase == GamePhase.ATTACK):
+            return self.get_possible_attack_actions(is_zombie)
+        if(self.phase == GamePhase.ABILITY):
+            return self.get_possible_ability_actions(is_zombie)
+        
+        assert("Something went wrong...")
+    
     def to_game_state(self):
         characters = {cs.id : Character(cs.id, cs.position, cs.is_zombie, cs.class_type, cs.health, cs.is_stunned()) for cs in self.character_states.values()}
-        terrain = {ts.id : Terrain(ts.id, ts.position, ts.health, ts.can_attack_through) for ts in self.terrain_states.values()}
+        terrain = {ts.id : Terrain(ts.id, ts.position, ts.health, ts.can_attack_through, ts.terrain_type) for ts in self.terrain_states.values()}
         return GameState(self.turn, characters, terrain)
     
     def is_equal(self, other_game_state: GameState):
