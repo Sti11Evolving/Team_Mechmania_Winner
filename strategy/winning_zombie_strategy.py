@@ -3,7 +3,7 @@
 # If there are no humans in attacking range but there are obstacles, attack a random obstacle.
 
 import random
-import MCTS
+import strategy.tree_search as tree_search
 from game.character.action.ability_action import AbilityAction
 from game.character.action.attack_action import AttackAction
 from game.character.action.move_action import MoveAction
@@ -13,7 +13,7 @@ from strategy.strategy import Strategy
 
 
 class WinningZombieStrategy(Strategy):
-
+    
     def decide_moves(
             self, 
             possible_moves: dict[str, list[MoveAction]], 
@@ -61,7 +61,7 @@ class WinningZombieStrategy(Strategy):
             game_state: GameState
             ) -> list[AttackAction]:
         
-        print(MCTS.test)
+        print(tree_search.test)
 
         choices = []
 

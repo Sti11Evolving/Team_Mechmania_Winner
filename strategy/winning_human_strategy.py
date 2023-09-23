@@ -5,7 +5,7 @@
 # If a Medic's ability is available, heal a human in range with the least health
 
 import random
-import MCTS
+import strategy.tree_search as tree_search
 from game.character.action.ability_action import AbilityAction
 from game.character.action.ability_action_type import AbilityActionType
 from game.character.action.attack_action import AttackAction
@@ -18,12 +18,17 @@ from strategy.strategy import Strategy
 
 
 class WinningHumanStrategy(Strategy):
+    
     def decide_character_classes(
             self,
             possible_classes: list[CharacterClassType],
             num_to_pick: int,
             max_per_same_class: int,
             ) -> dict[CharacterClassType, int]:
+        # Using this funtion for initilization
+        # Key is id, value is a tuple where the first value is attack cooldown and second is ability cooldown
+        self.cooldowns: dict(str, tuple(int, int)) = {}
+        
         # The maximum number of special classes we can choose is 16
         # Selecting 6 Marksmen, 6 Medics, and 4 Traceurs
         # The other 4 humans will be regular class
@@ -40,6 +45,11 @@ class WinningHumanStrategy(Strategy):
             game_state: GameState
             ) -> list[MoveAction]:
         
+        # initialize character cooldowns
+        if len(self.cooldowns) == 0:
+            for character_id in game_state.characters.keys():
+                self.cooldowns[character_id] = (0, 0)
+            
         choices = []
 
         for [character_id, moves] in possible_moves.items():
@@ -83,7 +93,7 @@ class WinningHumanStrategy(Strategy):
             ) -> list[AttackAction]:
         choices = []
         
-        print(MCTS.test)
+        print(tree_search.test)
 
         for [character_id, attacks] in possible_attacks.items():
             if len(attacks) == 0:  # No choices... Next!

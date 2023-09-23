@@ -4,7 +4,7 @@ from strategy.simple_zombie_strategy import SimpleZombieStrategy
 from strategy.winning_human_strategy import WinningHumanStrategy
 from strategy.winning_zombie_strategy import WinningZombieStrategy
 from strategy.strategy import Strategy
-import MCTS
+import strategy.tree_search as tree_search
 
 
 def choose_strategy(is_zombie: bool) -> Strategy:
