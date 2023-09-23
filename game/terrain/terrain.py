@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from game.terrain.terrain_type import TerrainType
 from game.util.assert_blob_has_key_of_type import assert_blob_has_key_of_type
 from game.util.position import Position
 
@@ -13,6 +14,7 @@ class Terrain:
     position: Position
     health: int
     can_attack_through: bool
+    type: TerrainType
 
     def deserialize(blob: object) -> "Terrain":
         try:
@@ -20,11 +22,16 @@ class Terrain:
             assert_blob_has_key_of_type(blob, "position", dict)
             assert_blob_has_key_of_type(blob, "health", int)
             assert_blob_has_key_of_type(blob, "canAttackThrough", bool)
+            assert_blob_has_key_of_type(blob, "type", str)
+            assert any(
+                blob["type"] == item.value for item in TerrainType
+            ), "Invalid attack action type"
             terrain = Terrain(
                 blob["id"],
                 Position.deserialize(blob["position"]),
                 blob["health"],
                 blob["canAttackThrough"],
+                TerrainType[blob["type"]],
             )
         except:
             print("Failed to validate Terrain json")
