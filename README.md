@@ -129,3 +129,13 @@ java -jar engine.jar 9001 9002
 ```
 
 </details>
+
+## Uploading
+
+Using the cli, you can upload your bot using:
+
+```ssh
+python build.py
+mm29 upload build/bot.pyz
+```
+
