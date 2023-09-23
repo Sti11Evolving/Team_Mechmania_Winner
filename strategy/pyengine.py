@@ -90,7 +90,7 @@ def add_positions(p1, p2):
     return Position(p1.x+p2.x, p1.y+p2.y)
 
 class CharacterState:
-    def __init__(self, character: Character, cooldowns: tuple(int, int)):
+    def __init__(self, character: Character, cooldowns: tuple[int, int]):
         self.id = character.id
         self.position = character.position
         self.is_zombie = character.is_zombie
@@ -108,9 +108,6 @@ class CharacterState:
 
     def get_position(self):
         return self.position
-    
-    def is_zombie(self):
-        return self.is_zombie
     
     def is_destroyed(self):
         return self.health == 0
@@ -130,6 +127,9 @@ class CharacterState:
     def damage(self):
         if self.health > 0:
             self.health -= 1
+            
+        if self.is_zombie:
+            self.stun()
         
     def heal(self):
         self.health += 1
@@ -142,7 +142,7 @@ class CharacterState:
         self.attack_cooldown_left = self.attack_cooldown + 1
         
     def stun(self):
-        self.stunned_effect_left = STUNNED_DURATION + 1
+        self.stunned_effect_left += STUNNED_DURATION + 1
         
     def apply_cooldown_and_effect_decay(self):
         if (self.attack_cooldown_left > 0):
@@ -167,7 +167,7 @@ class CharacterState:
 
 
 class TerrainState:
-    def __init__(self, terrain: Terrain|None, id, position, health, can_attack_through):
+    def __init__(self, terrain: Terrain|None, id = None, position = None, health = None, can_attack_through = None):
         if terrain:
             self.id = terrain.id
             self.position = terrain.position
@@ -207,10 +207,10 @@ class PyGameState:
     DIRECTIONS = [Position(0, 1), Position(0, -1), Position(1, 0), Position(-1, 0)]
     DIAGONAL_DIRECTIONS = [Position(1, 1), Position(1, -1), Position(-1, 1), Position(-1, -1)]
 
-    def __init__(self, game_state: GameState, cooldowns: dict(str, tuple(int, int))):
+    def __init__(self, game_state: GameState, cooldowns: dict[str, tuple[int, int]]):
         self.turn: int = game_state.turn
-        self.character_states = list(CharacterState(character, cooldowns[character.id]) for character in game_state.characters.values())
-        self.terrain_states = list(Terrain(terrain) for terrain in game_state.terrains.values())
+        self.character_states = dict((character.id, CharacterState(character, cooldowns[character.id])) for character in game_state.characters.values())
+        self.terrain_states = dict((terrain.id, TerrainState(terrain)) for terrain in game_state.terrains.values())
 
     def get_character_states(self):
         return self.character_states
@@ -225,23 +225,49 @@ class PyGameState:
         new_state = copy.deepcopy(self)
         new_state.turn += 1
 
-        player = new_state.zombie_player if new_state.turn % 2 == 1 else new_state.human_player
+        is_zombie_turn = True if new_state.turn % 2 == 1 else False
 
         new_state.apply_clear_actions(new_state.character_states)
         new_state.apply_move_actions(move_actions)
 
         new_state.apply_attack_actions(attack_actions)
-        new_state.apply_cooldown_and_effect_decay(player.is_zombie())
+        new_state.apply_cooldown_and_effect_decay(is_zombie_turn)
+
+        new_state.apply_ability_actions(ability_actions)
+        
+        return new_state
+    
+    def run_move(self, move_actions: list[MoveAction]) -> GameState:
+        new_state = copy.deepcopy(self)
+
+
+        new_state.apply_clear_actions(new_state.character_states)
+        new_state.apply_move_actions(move_actions)
+        
+        return new_state
+    
+    def run_attack(self, attack_actions: list[AttackAction]) -> GameState:
+        new_state = copy.deepcopy(self)
+
+        is_zombie_turn = True if new_state.turn % 2 == 1 else False
+
+        new_state.apply_attack_actions(attack_actions)
+        new_state.apply_cooldown_and_effect_decay(is_zombie_turn)
+        
+        return new_state
+    
+    def run_ability(self, ability_actions: list[AbilityAction]) -> GameState:
+        new_state = copy.deepcopy(self)
 
         new_state.apply_ability_actions(ability_actions)
         
         return new_state
 
     def get_zombies_count(self):
-        return sum(1 for character_state in self.character_states.values() if character_state.is_zombie())
+        return sum(1 for character_state in self.character_states.values() if character_state.is_zombie)
 
     def get_humans_count(self):
-        return sum(1 for character_state in self.character_states.values() if not character_state.is_zombie())
+        return sum(1 for character_state in self.character_states.values() if not character_state.is_zombie)
 
     def is_finished(self):
         if self.get_humans_count() <= 0:
@@ -294,7 +320,7 @@ class PyGameState:
 
     def apply_cooldown_and_effect_decay(self, is_zombie):
         for character_state in self.character_states.values():
-            if character_state.is_zombie() != is_zombie:
+            if character_state.is_zombie != is_zombie:
                 continue
 
             character_state.apply_cooldown_and_effect_decay()
@@ -323,10 +349,10 @@ class PyGameState:
         if attacker_state.is_destroyed() or target_state.is_destroyed():
             return False
 
-        if attacker_state.is_zombie() and target_state.is_zombie():
+        if attacker_state.is_zombie and target_state.is_zombie:
             return False
 
-        if not attacker_state.is_zombie() and not target_state.is_zombie():
+        if not attacker_state.is_zombie and not target_state.is_zombie:
             return False
 
         return True
@@ -395,7 +421,7 @@ class PyGameState:
         move_actions = []
 
         for character_state in self.character_states.values():
-            if character_state.is_zombie() != is_zombie:
+            if character_state.is_zombie != is_zombie:
                 continue
             
             if character_state.is_stunned():
@@ -436,7 +462,7 @@ class PyGameState:
         ability_actions = []
 
         for character_state in self.character_states.values():
-            if character_state.is_zombie() != is_zombie:
+            if character_state.is_zombie != is_zombie:
                 continue
 
             if character_state.ability == AbilityType.HEAL:
@@ -454,3 +480,65 @@ class PyGameState:
                         ability_actions += AbilityAction(character_state.id, None, position, AbilityActionType.BUILD_BARRICADE)
 
         return ability_actions
+    
+    def to_game_state(self):
+        characters = {cs.id : Character(cs.id, cs.position, cs.is_zombie, cs.class_type, cs.health, cs.is_stunned()) for cs in self.character_states.values()}
+        terrain = {ts.id : Terrain(ts.id, ts.position, ts.health, ts.can_attack_through) for ts in self.terrain_states.values()}
+        return GameState(self.turn, characters, terrain)
+    
+    def is_equal(self, other_game_state: GameState):
+        my_game_state = self.to_game_state()
+        
+        assert(other_game_state.turn == my_game_state.turn)
+        if(other_game_state.turn != my_game_state.turn):
+            return False
+        
+        
+        for id, character in other_game_state.characters.items():
+            assert(characters_equal(my_game_state.characters.get(id), character))
+            if(not characters_equal(my_game_state.characters.get(id), character)):
+                return False
+            
+        for id, terrain in other_game_state.terrains.items():
+            assert(terrain_equal(my_game_state.terrains.get(id), terrain))
+            if(not terrain_equal(my_game_state.terrains.get(id), terrain)):
+                return False
+            
+        return True
+            
+            
+def characters_equal(c1: Character, c2: Character):
+    assert(c1.id == c2.id)
+    assert(c1.health == c2.health)
+    assert(c1.class_type == c2.class_type)
+    if (c1.is_stunned != c2.is_stunned):
+        print(f"my stun: {c1}, \t their stun: {c2}")
+    # assert(c1.is_stunned == c2.is_stunned)
+    assert(c1.is_zombie == c2.is_zombie)
+    
+    if(c1.id != c2.id):
+        return False
+    if(c1.health != c2.health):
+        return False
+    if(c1.class_type != c2.class_type):
+        return False
+    if(c1.is_stunned != c2.is_stunned):
+        return False
+    if(c1.is_zombie != c2.is_zombie):
+        return False
+    
+    return True
+
+def terrain_equal(t1: Terrain, t2: Terrain):
+    assert(t1.id == t2.id)
+    assert(t1.health == t2.health)
+    assert(t1.can_attack_through == t2.can_attack_through)
+    
+    if(t1.id != t2.id):
+        return False
+    if(t1.health != t2.health):
+        return False
+    if(t1.can_attack_through != t2.can_attack_through):
+        return False
+    
+    return True

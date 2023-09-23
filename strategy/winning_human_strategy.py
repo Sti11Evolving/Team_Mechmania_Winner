@@ -15,10 +15,13 @@ from game.character.character_class_type import CharacterClassType
 from game.game_state import GameState
 from game.util.position import Position
 from strategy.strategy import Strategy
+from strategy.pyengine import PyGameState
 
+# Key is id, value is a tuple where the first value is attack cooldown and second is ability cooldown
+my_cooldowns: dict[str, tuple[int, int]] = {}
+my_game_state: PyGameState = None
 
 class WinningHumanStrategy(Strategy):
-    
     def decide_character_classes(
             self,
             possible_classes: list[CharacterClassType],
@@ -26,16 +29,15 @@ class WinningHumanStrategy(Strategy):
             max_per_same_class: int,
             ) -> dict[CharacterClassType, int]:
         # Using this funtion for initilization
-        # Key is id, value is a tuple where the first value is attack cooldown and second is ability cooldown
-        self.cooldowns: dict(str, tuple(int, int)) = {}
         
         # The maximum number of special classes we can choose is 16
         # Selecting 6 Marksmen, 6 Medics, and 4 Traceurs
         # The other 4 humans will be regular class
         choices = {
-            CharacterClassType.MARKSMAN: 6,
-            CharacterClassType.MEDIC: 6,
-            CharacterClassType.TRACEUR: 4,
+            CharacterClassType.MARKSMAN: 5,
+            CharacterClassType.MEDIC: 5,
+            CharacterClassType.TRACEUR: 5,
+            CharacterClassType.DEMOLITIONIST: 1,
         }
         return choices
 
@@ -45,10 +47,18 @@ class WinningHumanStrategy(Strategy):
             game_state: GameState
             ) -> list[MoveAction]:
         
+        global my_cooldowns
+        global my_game_state
+        
         # initialize character cooldowns
-        if len(self.cooldowns) == 0:
+        if len(my_cooldowns) == 0:
             for character_id in game_state.characters.keys():
-                self.cooldowns[character_id] = (0, 0)
+                my_cooldowns[character_id] = (0, 0)
+                
+        my_game_state = PyGameState(game_state, my_cooldowns)
+        print(my_game_state.turn, game_state.turn)
+        print(my_game_state.is_equal(game_state))
+        
             
         choices = []
 
@@ -83,6 +93,8 @@ class WinningHumanStrategy(Strategy):
                     move_choice = m
 
             choices.append(move_choice)  # add the choice to the list
+            
+            my_game_state.run_move(choices)
 
         return choices
 
@@ -93,7 +105,9 @@ class WinningHumanStrategy(Strategy):
             ) -> list[AttackAction]:
         choices = []
         
-        print(tree_search.test)
+        global my_cooldowns
+        global my_game_state
+        print(my_game_state.is_equal(game_state))
 
         for [character_id, attacks] in possible_attacks.items():
             if len(attacks) == 0:  # No choices... Next!
@@ -116,6 +130,8 @@ class WinningHumanStrategy(Strategy):
 
             if closest_zombie:  # Attack the closest zombie, if there is one
                 choices.append(closest_zombie)
+                
+            my_game_state.run_attack(choices)
 
         return choices
 
@@ -125,6 +141,10 @@ class WinningHumanStrategy(Strategy):
             game_state: GameState
             ) -> list[AbilityAction]:
         choices = []
+        
+        global my_cooldowns
+        global my_game_state
+        print(my_game_state.is_equal(game_state))
 
         for [character_id, abilities] in possible_abilities.items():
             if len(abilities) == 0:  # No choices? Next!
@@ -143,5 +163,7 @@ class WinningHumanStrategy(Strategy):
 
             if human_target:  # Give the human a cookie
                 choices.append(human_target)
+                
+            my_game_state.run_ability(choices)
         
         return choices

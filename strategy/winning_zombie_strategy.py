@@ -60,8 +60,6 @@ class WinningZombieStrategy(Strategy):
             possible_attacks: dict[str, list[AttackAction]], 
             game_state: GameState
             ) -> list[AttackAction]:
-        
-        print(tree_search.test)
 
         choices = []
 
