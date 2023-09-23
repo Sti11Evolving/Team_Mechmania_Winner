@@ -41,10 +41,46 @@ and you should see an engine.jar appear in engine/engine.jar!
 
 If you don't, you can manually install it by following the instructions on the [engine](https://github.com/MechMania-29/engine) page.
 
-## Usage
+## Getting started
 
-To modify your strategy, you'll want to edit `strategy/choose_strategy.py`.
-You should only need to edit files in the strategy directory.
+If you haven't read the [wiki](https://github.com/MechMania-29/Wiki) yet, do that first! This starterpack provides the basics for you to get started. All the files you need to worry about editing are located in the `strategy/` directory. `choose_strategy.py` will select the specific strategy to use. You can use this to select different strategies based on whether you're a zombie or not. Each strategy has to implement 4 functions which will determine how your bot responds in each phase. Let's explain them.
+- `def decide_character_classes(self,  possible_classes: list[CharacterClassType], num_to_pick: int,  max_per_same_class: int) -> dict[CharacterClassType, int]`
+  - This function will return what classes you'll select when you're the human.
+  - `possible_classes` gives you the list of possible classes you can choose from, `num_to_pick` gives the total number you can pick, and `max_per_same_class` defines the max of how many characters can be in the same class.
+  - You will return a dictionary pairing `CharacterClassType` to the count you want of that.
+  - For example, if you wanted 5 medics, you could simply do:
+  - ```py
+    return {
+      CharacterClassType.MEDIC: 5,
+    }
+    ```
+- `def decide_moves(self, possible_moves: dict[str, list[MoveAction]], game_state: GameState) -> list[MoveAction]`
+  - This function will return the moves that each character will make.
+  - `possible_moves` maps each character id to it's possible MoveActions it can take. You can use this to validate if a move is possible, or pick from this list.
+  - `game_state` is the current state of all characters and terrain on the map, you can use this to inform which move you want to make for each character
+  - A MoveAction just defines where the character will end up. You don't have to compute the possible moves manually - we give you the possible ones.
+  - A character id is just a unqiue string that represents a specific character. You can get a character by id with `game_state.characters.get(id)` -> `Character`
+  - You will return a list of moves to take, which should effectively be a move for each character.
+- `def decide_attacks(self, possible_attacks: dict[str, list[AttackAction]], game_state: GameState) -> list[AttackAction]`
+  - This function will return the attacks that each character will make.
+  - `possible_attacks` maps each character id to it's possible AttackActions it can take. You can use this to validate if a move is possible, or pick from this list.
+  - `game_state` is the same as above. Use it to inform your actions.
+  - An AttackAction can be on terrain or a character, so be careful not to just attack everything. See the file it's defined in for more info.
+  - You will return a list of attacks to make, which should be a attack for each character that can attack.
+- `def decide_abilities(self, possible_abilities: dict[str, list[AbilityAction]], game_state: GameState) -> list[AbilityAction]`
+  - This function will return the abilities that each character will make.
+  - `possible_abilities` maps each character id to it's possible AbilityActions it can take.
+  - `game_state` is same as above.
+  - An AbilityAction can be building a barricade or healing. Use type to determine which.
+  - Healing targets a character and building targets a position, so consider that accordingly.
+
+**Several useful tips:**
+- Read the docs! Reading the wiki is really important as well as the rest of this README. Don't make this harder!
+- All code for MechMania is open source, take advantage of that! For example, [the map can be found on the engine](https://github.com/MechMania-29/engine/blob/main/src/main/resources/maps/main.json).
+- You [only have 2.5 seconds](https://github.com/MechMania-29/engine/blob/main/src/main/java/mech/mania/engine/Config.java#L112) to make a decision for each phase! Don't try anything too complicated. (O^4 = bad)
+- You cannot import any external libraries.
+
+## Usage
 
 To run your client, you can use the following commands:
 
@@ -93,3 +129,13 @@ java -jar engine.jar 9001 9002
 ```
 
 </details>
+
+## Uploading
+
+Using the cli, you can upload your bot using:
+
+```ssh
+python build.py
+mm29 upload build/bot.pyz
+```
+
